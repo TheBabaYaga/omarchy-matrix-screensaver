@@ -54,3 +54,7 @@ You can then delete the `omarchy-matrix-screensaver` folder.
 - Omarchy runs `omarchy-screensaver` by name, so it finds the wrapper in that folder first.
 - The wrapper starts `matrix-rain`. A key press or a focus change stops it.
 - `uninstall.sh` removes the line and the files. Omarchy then uses its stock screensaver.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
