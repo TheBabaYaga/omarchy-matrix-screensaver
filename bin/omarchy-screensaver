@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Run the Matrix rain screensaver in place of the stock Omarchy screensaver.
+# install.sh copies this file to ~/.local/share/matrix-screensaver/bin. Hyprland
+# puts that folder first in PATH, so omarchy-launch-screensaver runs this script.
+
+matrix_rain="$HOME/.local/bin/matrix-rain"
+
+# Use the stock screensaver if matrix-rain is not installed.
+if [[ ! -x $matrix_rain ]]; then
+  exec /usr/bin/omarchy-screensaver "$@"
+fi
+
+screensaver_in_focus() {
+  hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
+}
+
+exit_screensaver() {
+  hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
+  # Stop only the matrix-rain that this wrapper started.
+  [[ -n $rain_pid ]] && kill "$rain_pid" 2>/dev/null
+  pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
+  exit 0
+}
+
+rain_pid=
+
+# Exit the screensaver on signals and on input from keyboard and mouse.
+trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
+
+printf '\033]11;rgb:00/00/00\007' # Set the background color to black.
+
+hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
+
+# The terminal starts at 80x24 and gets its real size from the compositor later.
+# Wait for the resize, so matrix-rain does not start on an 80x24 grid.
+# matrix-rain also handles SIGWINCH if the resize comes later.
+wait_for_terminal_resize() {
+  local deadline=$((SECONDS + 2))
+  while ((SECONDS < deadline)) && [[ $(stty size 2>/dev/null) == "24 80" ]]; do
+    sleep 0.02
+  done
+}
+
+wait_for_terminal_resize
+
+"$matrix_rain" &
+rain_pid=$!
+
+while kill -0 "$rain_pid" 2>/dev/null; do
+  if read -r -n1 -t 1 || ! screensaver_in_focus; then
+    exit_screensaver
+  fi
+done
+
+# matrix-rain stopped by itself. Close the screensaver.
+exit_screensaver
